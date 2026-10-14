@@ -1,0 +1,41 @@
+{
+  "name": "backend-unslop-mcp",
+  "version": "1.0.0",
+  "description": "MCP server + agent skill that audits and eliminates AI backend slop. Works with Claude Code, Claude Desktop, Codex and Antigravity.",
+  "type": "module",
+  "bin": {
+    "backend-unslop-mcp": "src/server.mjs"
+  },
+  "files": [
+    "src",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "skill",
+    "anti-slop",
+    "backend",
+    "claude",
+    "codex",
+    "antigravity"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "author": "Fikri Firman Fadilah",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fikrifirmanf/backend-unslop-mcp.git"
+  },
+  "homepage": "https://github.com/fikrifirmanf/backend-unslop-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/fikrifirmanf/backend-unslop-mcp/issues"
+  }
+}

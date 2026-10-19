@@ -1,6 +1,6 @@
 {
   "name": "backend-unslop-mcp",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Polyglot MCP server + agent skill that audits and eliminates AI backend & SQL slop across TypeScript/JS, Python, Go, Rust, Java, C#, PHP, Ruby, and SQL. Works with Claude Code, Claude Desktop, Codex and Antigravity.",
   "type": "module",
   "bin": {
@@ -37,7 +37,7 @@
   "author": "Fikri Firman Fadilah",
   "repository": {
     "type": "git",
-    "url": "git+[https://github.com/fikrifirmanf/backend-unslop-mcp.git](https://github.com/fikrifirmanf/backend-unslop-mcp.git)"
+    "url": "[https://github.com/fikrifirmanf/backend-un](https://github.com/fikrifirmanf/backend-un)"
   },
   "homepage": "[https://github.com/fikrifirmanf/backend-unslop-mcp#readme](https://github.com/fikrifirmanf/backend-unslop-mcp#readme)",
   "bugs": {

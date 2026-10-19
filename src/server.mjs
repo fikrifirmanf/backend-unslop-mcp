@@ -64,7 +64,7 @@ const STACK_LEAK = new RegExp(
 
 await run({
   name: "backend-unslop-mcp",
-  version: "1.1.1",
+  version: "1.1.2",
   skill: "backend-unslop",
   description: "Polyglot Backend & SQL anti-slop rules (TypeScript/Node, Python, Go, Rust, Java/Kotlin, C#, PHP, Ruby, PostgreSQL, ClickHouse, Redis, APIs, async workers).",
   auditTool: "audit_backend_slop",

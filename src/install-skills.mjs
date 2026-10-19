@@ -9,7 +9,7 @@ const SKILLS_SRC = path.resolve(here, "..", "skills");
 const TARGETS = {
   "claude-code": path.join(os.homedir(), ".claude", "skills"),
   codex: path.join(os.homedir(), ".codex", "skills"),
-  antigravity: path.join(os.homedir(), ".gemini", "antigravity", "skills"),
+  antigravity: path.join(os.homedir(), ".gemini", "config", "skills"),
 };
 
 export async function installSkills() {

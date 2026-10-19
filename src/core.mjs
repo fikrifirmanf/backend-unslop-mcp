@@ -7,6 +7,7 @@ import {
   GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
@@ -61,19 +62,65 @@ async function audit(files, rules, root) {
   );
 }
 
-async function tsc(projectRoot, root) {
-  const cwd = path.resolve(root, projectRoot || ".");
-  if (path.relative(root, cwd).startsWith("..")) return text({ status: "FAIL", message: "projectRoot is outside the workspace." }, true);
+async function runCheck(cmd, args, cwd) {
   try {
-    await execFileAsync("npx", ["--no-install", "tsc", "--noEmit", "--pretty", "false"], { cwd, timeout: 180_000, maxBuffer: 10 * 1024 * 1024 });
-    return text({ status: "PASS", message: "Zero TypeScript errors." });
+    await execFileAsync(cmd, args, { cwd, timeout: 180_000, maxBuffer: 10 * 1024 * 1024 });
+    return { ok: true, cmd: `${cmd} ${args.join(" ")}` };
   } catch (err) {
-    return text({
-      status: "FAIL",
-      compilerOutput: `${err.stdout || ""}\n${err.stderr || err.message || ""}`.trim().slice(0, 20000),
-      instruction: "Fix all TypeScript errors (or install typescript locally) and re-run verify_typescript_compile.",
-    }, true);
+    return {
+      ok: false,
+      cmd: `${cmd} ${args.join(" ")}`,
+      output: `${err.stdout || ""}\n${err.stderr || err.message || ""}`.trim().slice(0, 20000),
+    };
   }
+}
+
+async function verifyCompile(projectRoot, root, files = []) {
+  const cwd = path.resolve(root, projectRoot || ".");
+  if (path.relative(root, cwd).startsWith("..")) {
+    return text({ status: "FAIL", message: "projectRoot is outside the workspace." }, true);
+  }
+
+  const checks = [];
+  const hasFile = (name) => existsSync(path.join(cwd, name));
+  const exts = new Set(files.map((f) => path.extname(f).toLowerCase()));
+
+  if (hasFile("tsconfig.json") || exts.has(".ts") || exts.has(".tsx")) {
+    checks.push({ lang: "typescript", ...(await runCheck("npx", ["--no-install", "tsc", "--noEmit", "--pretty", "false"], cwd)) });
+  }
+  if (hasFile("go.mod") || exts.has(".go")) {
+    checks.push({ lang: "go", ...(await runCheck("go", ["vet", "./..."], cwd)) });
+  }
+  if (hasFile("Cargo.toml") || exts.has(".rs")) {
+    checks.push({ lang: "rust", ...(await runCheck("cargo", ["check", "--quiet"], cwd)) });
+  }
+  if (hasFile("pyproject.toml") || hasFile("requirements.txt") || exts.has(".py")) {
+    const pyFiles = files.filter((f) => f.endsWith(".py")).map((f) => path.resolve(root, f));
+    const targetArgs = pyFiles.length > 0 ? ["-m", "py_compile", ...pyFiles] : ["-m", "compileall", "-q", "."];
+    checks.push({ lang: "python", ...(await runCheck("python3", targetArgs, cwd)) });
+  }
+
+  if (checks.length === 0) {
+    return text({ status: "PASS", message: "No compiler config detected in projectRoot; skipped compile check." });
+  }
+
+  const failed = checks.filter((c) => !c.ok);
+  if (failed.length > 0) {
+    return text(
+      {
+        status: "FAIL",
+        failedChecks: failed,
+        instruction: "Fix all compiler/typecheck errors and re-run verification.",
+      },
+      true
+    );
+  }
+
+  return text({
+    status: "PASS",
+    verified: checks.map((c) => ({ lang: c.lang, cmd: c.cmd })),
+    message: "Zero compiler/syntax errors across detected backend languages.",
+  });
 }
 
 /**
@@ -83,10 +130,18 @@ export async function run(cfg) {
   const root = process.cwd();
   const skillPath = path.resolve(here, "..", "skills", cfg.skill, "SKILL.md");
   const loadSkill = () => fs.readFile(skillPath, "utf8");
+  const extra = cfg.extraTools || [];
   const filesSchema = {
     type: "object",
     properties: { files: { type: "array", items: { type: "string" }, description: "Workspace-relative file paths to audit" } },
     required: ["files"],
+  };
+  const compileSchema = {
+    type: "object",
+    properties: {
+      projectRoot: { type: "string", description: "Relative dir containing project config (tsconfig.json, go.mod, Cargo.toml, pyproject.toml; default '.')" },
+      files: { type: "array", items: { type: "string" }, description: "Optional modified file paths to target syntax/type checks" },
+    },
   };
 
   const server = new Server({ name: cfg.name, version: cfg.version }, { capabilities: { tools: {}, prompts: {} } });
@@ -102,11 +157,17 @@ export async function run(cfg) {
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       { name: `load_${cfg.skill.replace(/-/g, "_")}_rules`, description: `Returns the full ${cfg.skill} ruleset. Call before writing code if the ${cfg.skill} skill is not already loaded.`, inputSchema: { type: "object", properties: {} } },
+      ...extra.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
       { name: cfg.auditTool, description: cfg.auditDescription, inputSchema: filesSchema },
       {
+        name: "verify_backend_compile",
+        description: "Verifies backend compilation/syntax across TypeScript (tsc --noEmit), Go (go vet), Rust (cargo check), and Python (py_compile/compileall).",
+        inputSchema: compileSchema,
+      },
+      {
         name: "verify_typescript_compile",
-        description: "Runs `tsc --noEmit` in the workspace to verify zero type errors.",
-        inputSchema: { type: "object", properties: { projectRoot: { type: "string", description: "Relative dir containing tsconfig.json (default '.')" } } },
+        description: "Runs `tsc --noEmit` (or auto-detected backend compiler check if not a TS project) in the workspace to verify zero compile/type errors.",
+        inputSchema: compileSchema,
       },
     ],
   }));
@@ -115,7 +176,11 @@ export async function run(cfg) {
     const { name, arguments: args = {} } = req.params;
     if (name === `load_${cfg.skill.replace(/-/g, "_")}_rules`) return text(await loadSkill());
     if (name === cfg.auditTool) return audit(Array.isArray(args.files) ? args.files : [], cfg.rules, root);
-    if (name === "verify_typescript_compile") return tsc(args.projectRoot, root);
+    const t = extra.find((x) => x.name === name);
+    if (t) return text(...(await t.handler(args, root)));
+    if (name === "verify_backend_compile" || name === "verify_typescript_compile") {
+      return verifyCompile(args.projectRoot, root, Array.isArray(args.files) ? args.files : []);
+    }
     throw new Error(`Unknown tool: ${name}`);
   });
 

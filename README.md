@@ -2,7 +2,8 @@
 
 > Stop AI-generated APIs and SQL from shipping as naive slop: polyglot skill + MCP verifier for TypeScript/JS, Python, Go, Rust, Java/Kotlin, C#, PHP, Ruby, PostgreSQL, ClickHouse, Redis and async workers.
 
-[![npm](https://img.shields.io/npm/v/backend-unslop-mcp?color=cb3837&logo=npm)]([https://www.npmjs.com](https://www.npmjs.com)](./LICENSE)
+[![npm](https://img.shields.io/npm/v/backend-unslop-mcp?color=cb3837&logo=npm)](https://www.npmjs.com/package/backend-unslop-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-server-blue)](https://modelcontextprotocol.io)
 
 An **agent skill** plus an **MCP server** in one package. The skill tells your coding agent what backend & SQL slop to avoid across languages; the MCP tools then *deterministically verify* the result, so the agent can't just claim it's done.

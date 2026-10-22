@@ -27,8 +27,22 @@ Never output naive queries, unvalidated handlers, silent error blocks, or blocki
 - **No silent catch or stack leaks:** never use empty `catch {}`, `except: pass`, empty `if err != nil {}`, or bare `rescue`. Never return raw driver errors, `err.stack`, `traceback.format_exc()`, or `err.Error()` directly to HTTP clients. Return structured error codes and log context server-side.
 - **No unfinished placeholders:** never leave `TODO`, `FIXME`, `NotImplementedError`, `todo!()`, or `unimplemented!()` in production handlers.
 
-## 3. Mandatory verification loop
+## 3. Security defaults (HARD BANS)
+- **No hardcoded credentials:** API keys, passwords, tokens, private keys and connection strings come from the environment or a secret manager. Never paste a real-looking key, even "temporarily".
+- **No `UPDATE`/`DELETE` without `WHERE`.**
+- **Never disable TLS verification** (`rejectUnauthorized: false`, `verify=False`, `InsecureSkipVerify: true`). Fix the CA bundle.
+- **Passwords:** argon2id, scrypt or bcrypt only. Never md5/sha1/sha256.
+- **Tokens, OTPs, reset codes, salts:** `crypto.randomBytes`/`randomUUID`, `secrets`, `crypto/rand`. Never `Math.random()` or `random`.
+- **No `eval`, `new Function`, or shell strings built from input.** Pass argv arrays (`execFile`, `subprocess.run([...])`, `exec.Command(bin, args...)`).
+- **JWTs:** verify the signature with an explicit `algorithms` allowlist; `jwt.decode` alone is not authentication.
+- **CORS:** list the allowed origins explicitly; never `*` with credentials.
+- **Outbound calls carry timeouts:** `fetch(url, { signal: AbortSignal.timeout(ms) })`, `requests.get(url, timeout=5)`, `&http.Client{Timeout: ...}`.
+- **Go:** never discard an error with `_`. **Rust:** propagate with `?` instead of `.unwrap()` outside tests. **Python:** no bare `except:`.
+
+## 4. Mandatory verification loop
 Before claiming a backend/database task is complete:
-1. Call MCP tool `audit_backend_slop` with every modified file path (`.ts`, `.js`, `.py`, `.go`, `.rs`, `.java`, `.kt`, `.cs`, `.php`, `.rb`, `.sql`).
-2. Call `verify_backend_compile` (or `verify_typescript_compile`) to verify zero compiler/type/syntax errors across TypeScript (`tsc --noEmit`), Go (`go vet`), Rust (`cargo check`), and Python (`py_compile`).
-3. On `status: "FAIL"`, fix every violation and re-run until `PASS`.
+1. Call MCP tool `audit_backend_slop` with every modified file or directory (omit `files` to audit the git working-tree changes).
+2. Call `verify_backend_compile` with the same files. It runs TypeScript (`tsc --noEmit`), Go (`go vet`), Rust (`cargo check`), Python (`py_compile`), PHP (`php -l`) and Ruby (`ruby -c`).
+3. On `status: "FAIL"`, fix every ERROR at its root cause and re-run until `PASS`. Review WARN findings.
+4. A finding that is a verified false positive may be suppressed with a comment on or above the line: `// unslop-ignore RULE_ID -- why this is safe`. A suppression without a reason is itself an ERROR. Never suppress to get past a real problem.
+5. `SKIPPED` means the toolchain is missing: tell the user verification did not run. Never report it as passing.
